@@ -44,47 +44,18 @@ Building.center = BABYLON.Vector3.Zero();
 Building.radius = 10;
 class BuildingData {
     constructor() {
-        this.coordinates = BABYLON.Vector2.Zero();
         this.shape = [];
         this.level = 1;
     }
     pushNode(node) {
-        this.coordinates.scaleInPlace(this.shape.length);
         this.shape.push(node);
-        this.coordinates.addInPlace(node);
-        this.coordinates.scaleInPlace(1 / this.shape.length);
-    }
-    static instantiateBakeMany(data, scene) {
-        if (data.length === 0) {
-            return undefined;
-        }
-        let rawData = BuildingData.extrudeToSolidRaw(data[0].shape, data[0].level * 0.2 + 0.1 * Math.random());
-        let vCount = rawData.positions.length / 3;
-        for (let i = 1; i < data.length; i++) {
-            let otherRawData = BuildingData.extrudeToSolidRaw(data[i].shape, data[i].level * 0.2 + 0.1 * Math.random());
-            for (let j = 0; j < otherRawData.indices.length; j++) {
-                otherRawData.indices[j] += vCount;
-            }
-            vCount += otherRawData.positions.length / 3;
-            rawData.positions.push(...otherRawData.positions);
-            rawData.indices.push(...otherRawData.indices);
-            rawData.colors.push(...otherRawData.colors);
-        }
-        let building = new Building(scene);
-        building.coordinates = data[0].coordinates.clone();
-        let vertexData = new BABYLON.VertexData();
-        vertexData.positions = rawData.positions;
-        vertexData.indices = rawData.indices;
-        vertexData.colors = rawData.colors;
-        vertexData.applyToMesh(building);
-        building.freezeWorldMatrix();
-        return building;
     }
     instantiate(scene) {
         let building = new Building(scene);
-        building.coordinates = this.coordinates.clone();
-        let data = BuildingData.extrudeToSolid(this.shape, this.level * 0.2 + 0.1 * Math.random());
-        data.applyToMesh(building);
+        let rawData = BuildingData.extrudeToSolidRaw(this.shape, this.level * 0.2);
+        BuildingData.vertexDataFromRawData(rawData).applyToMesh(building);
+        building.position.x = rawData.position.x;
+        building.position.z = rawData.position.y;
         building.freezeWorldMatrix();
         return building;
     }
@@ -92,12 +63,18 @@ class BuildingData {
         let positions = [];
         let indices = [];
         let colors = [];
+        let position = BABYLON.Vector2.Zero();
+        let radius = 0;
         for (let i = 0; i < points.length; i++) {
-            positions.push(points[i].x, height, points[i].y);
+            position.addInPlace(points[i]);
+        }
+        position.scaleInPlace(1 / points.length);
+        for (let i = 0; i < points.length; i++) {
+            positions.push(points[i].x - position.x, height, points[i].y - position.y);
             colors.push(1, 1, 1, 1);
         }
         for (let i = 0; i < points.length; i++) {
-            positions.push(points[i].x, 0, points[i].y);
+            positions.push(points[i].x - position.x, 0, points[i].y - position.y);
             colors.push(0.3, 0.3, 0.3, 1);
         }
         for (let i = 0; i < points.length; i++) {
@@ -122,8 +99,17 @@ class BuildingData {
         return {
             positions: positions,
             indices: indices,
-            colors: colors
+            colors: colors,
+            position: position,
+            radius: 1
         };
+    }
+    static vertexDataFromRawData(rawData) {
+        let data = new BABYLON.VertexData();
+        data.positions = rawData.positions;
+        data.indices = rawData.indices;
+        data.colors = rawData.colors;
+        return data;
     }
     static extrudeToSolid(points, height) {
         let data = new BABYLON.VertexData();
@@ -145,18 +131,9 @@ class BuildingMaker {
                 work = true;
             }
             while (this.toDoList.length > 0 && (t1 - t0) < 10) {
-                if (this.toDoList.length > 2) {
-                    let data0 = this.toDoList.pop();
-                    let data1 = this.toDoList.pop();
-                    let data2 = this.toDoList.pop();
-                    BuildingData.instantiateBakeMany([data0, data1, data2], Main.instance.scene);
-                    t1 = (new Date()).getTime();
-                }
-                else {
-                    let data = this.toDoList.pop();
-                    data.instantiate(Main.instance.scene);
-                    t1 = (new Date()).getTime();
-                }
+                let data = this.toDoList.pop();
+                data.instantiate(Main.instance.scene);
+                t1 = (new Date()).getTime();
             }
             if (work && this.toDoList.length === 0) {
                 Failure.update();
@@ -218,6 +195,8 @@ class CameraManager {
         this.onTransitionDone = () => {
             this.state = CameraState.local;
             Main.instance.camera.useAutoRotationBehavior = false;
+            //Main.instance.camera.autoRotationBehavior.idleRotationWaitTime = 500;
+            //Main.instance.camera.autoRotationBehavior.idleRotationSpinupTime = 2000;
         };
         this.k = 0;
         Main.instance.scene.registerBeforeRender(this.transitionStep);
@@ -306,6 +285,8 @@ class GroundManager {
     }
     toLocalGround(target) {
         this.k = 0;
+        // this.localGround.position.x = target.x;
+        // this.localGround.position.z = target.z;
         Main.instance.scene.registerBeforeRender(this.transitionStepToLocal);
     }
     toGlobalGround() {
@@ -498,6 +479,44 @@ class Tools {
         return Math.atan(Math.sinh(Math.PI - (z + Main.medZ) / Math.pow(2, zoom) * 2 * Math.PI)) * 180 / Math.PI;
     }
 }
+/*
+class Tools {
+    public static LonToX(lon: number): number {
+        return lon * 1250 - Main.medX;
+    }
+
+    public static LatToZ(lat: number): number {
+        return Math.log(Math.tan((lat / 90 + 1) * PI_4 )) * RAD2DEG * 1250 - Main.medZ;
+    }
+
+    public static XToLon(x: number): number {
+        return (x + Main.medX) / 1250;
+    }
+    
+    public static ZToLat(z: number): number {
+        return (Math.atan(Math.exp((z + Main.medZ) / 1250 / RAD2DEG)) / PI_4 - 1) * 90;
+    }
+}
+
+class Tools {
+    public static LonToX(lon: number): number {
+        return (lon - Main.medLon) * 2000;
+    }
+
+    public static LatToZ(lat: number): number {
+        return (lat - Main.medLat) * 2000;
+    }
+
+
+    public static XToLon(x: number): number {
+        return x / 2000 + Main.medLon;
+    }
+    
+    public static ZToLat(z: number): number {
+        return z / 2000 + Main.medLat;
+    }
+}
+*/ 
 class Twittalert extends BABYLON.Mesh {
     constructor(position, content, date, author, pictureUrl, scene) {
         super("TwittAlert", scene);
