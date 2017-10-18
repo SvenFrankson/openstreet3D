@@ -16,8 +16,8 @@ class Main {
     public static failureMaterial: BABYLON.StandardMaterial;
     public static greenMaterial: BABYLON.StandardMaterial;
 
-    public static medLon: number = 6.1460142;
-    public static medLat: number = 49.0798797;
+    public static medLon: number = 6.16563;
+    public static medLat: number = 49.1246969;
 
     public static medX: number = 0;
     public static medZ: number = 0;

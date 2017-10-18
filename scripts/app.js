@@ -362,8 +362,8 @@ class Main {
         this.engine.resize();
     }
 }
-Main.medLon = 6.1460142;
-Main.medLat = 49.0798797;
+Main.medLon = 6.16563;
+Main.medLat = 49.1246969;
 Main.medX = 0;
 Main.medZ = 0;
 function myMethod(node1) {
