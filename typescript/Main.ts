@@ -77,6 +77,8 @@ class Main {
             }
         );
 
+        let p = BABYLON.MeshBuilder.CreateBox("Box", {size: 0.5, width: 0.5, height: 1.8}, this.scene);
+        p.position.y = 0.9;
     }
 
     public animate(): void {

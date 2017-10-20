@@ -1,6 +1,6 @@
 var RAD2DEG = 180 / Math.PI;
 var PI_4 = Math.PI / 4;
-var zoom: number = 20;
+var zoom: number = 25;
 
 class Tools {
     public static LonToX(lon: number): number {
@@ -18,6 +18,11 @@ class Tools {
     
     public static ZToLat(z: number): number {
         return Math.atan(Math.sinh(Math.PI - (z + Main.medZ) / Math.pow(2, zoom) * 2 * Math.PI)) * 180 / Math.PI;
+    }
+
+    public static RotateToRef(v: BABYLON.Vector2, alpha: number, ref: BABYLON.Vector2): void {
+        ref.x = Math.cos(alpha) * v.x - Math.sin(alpha) * v.y;
+        ref.y = Math.sin(alpha) * v.x + Math.cos(alpha) * v.y;
     }
 }
 

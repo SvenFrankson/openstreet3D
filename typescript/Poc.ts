@@ -25,7 +25,7 @@ class Poc {
                         }
                         if (nodes[i].tagName === "way") {
                             let itsBuilding: boolean = false;
-                            let level: number = 1;
+                            let level: number = Math.floor(Math.random() * 3 + 1);
                             let nodeIChildren = nodes[i].children;
                             for (let j: number = 0; j < nodeIChildren.length; j++) {
                                 if (nodeIChildren[j].tagName === "tag") {

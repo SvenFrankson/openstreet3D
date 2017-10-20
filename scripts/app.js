@@ -52,14 +52,14 @@ class BuildingData {
     }
     instantiate(scene) {
         let building = new Building(scene);
-        let rawData = BuildingData.extrudeToSolidRaw(this.shape, this.level * 0.2);
+        let rawData = BuildingData.extrudeToSolidRaw(this.shape, this.level);
         BuildingData.vertexDataFromRawData(rawData).applyToMesh(building);
         building.position.x = rawData.position.x;
         building.position.z = rawData.position.y;
         building.freezeWorldMatrix();
         return building;
     }
-    static extrudeToSolidRaw(points, height) {
+    static extrudeToSolidRaw(points, level) {
         let positions = [];
         let indices = [];
         let colors = [];
@@ -70,7 +70,7 @@ class BuildingData {
         }
         position.scaleInPlace(1 / points.length);
         for (let i = 0; i < points.length; i++) {
-            positions.push(points[i].x - position.x, height, points[i].y - position.y);
+            positions.push(points[i].x - position.x, level * 2.5, points[i].y - position.y);
             colors.push(1, 1, 1, 1);
         }
         for (let i = 0; i < points.length; i++) {
@@ -96,6 +96,19 @@ class BuildingData {
             topPoints.push(points[i].x, points[i].y);
         }
         indices.push(...Earcut.earcut(topPoints, [], 2));
+        for (let i = 0; i < points.length; i++) {
+            let a = points[i];
+            let b = points[i + 1];
+            if (!b) {
+                b = points[0];
+            }
+            let l = BABYLON.Vector2.Distance(a, b);
+            for (let d = 1; d < l - 2; d += 2) {
+                for (let h = 0; h < level; h++) {
+                    BuildingData.pushWindow(points[i].x - position.x, points[i].y - position.y, points[i + 1].x - position.x, points[i + 1].y - position.y, d, 0.8 + h * 2.5, positions, indices, colors);
+                }
+            }
+        }
         return {
             positions: positions,
             indices: indices,
@@ -103,6 +116,27 @@ class BuildingData {
             position: position,
             radius: 1
         };
+    }
+    static pushWindow(x1, y1, x2, y2, x, h, positions, indices, colors) {
+        BuildingData._dir.copyFromFloats(x2 - x1, y2 - y1);
+        BuildingData._dir.normalize();
+        Tools.RotateToRef(BuildingData._dir, -Math.PI / 2, BuildingData._norm);
+        let p0 = new BABYLON.Vector2(x1, y1);
+        p0.addInPlace(BuildingData._dir.scale(x));
+        p0.addInPlace(BuildingData._norm.scale(0.1));
+        let p1 = p0.clone();
+        p1.addInPlace(BuildingData._dir);
+        let i = positions.length / 3;
+        positions.push(p0.x, h, p0.y);
+        colors.push(0.5, 0.8, 1, 1);
+        positions.push(p1.x, h, p1.y);
+        colors.push(0.5, 0.8, 1, 1);
+        positions.push(p1.x, h + 1, p1.y);
+        colors.push(0.5, 0.8, 1, 1);
+        positions.push(p0.x, h + 1, p0.y);
+        colors.push(0.5, 0.8, 1, 1);
+        indices.push(i, i + 1, i + 2);
+        indices.push(i, i + 2, i + 3);
     }
     static vertexDataFromRawData(rawData) {
         let data = new BABYLON.VertexData();
@@ -121,6 +155,8 @@ class BuildingData {
     }
 }
 BuildingData.instances = [];
+BuildingData._dir = BABYLON.Vector2.Zero();
+BuildingData._norm = BABYLON.Vector2.Zero();
 class BuildingMaker {
     constructor() {
         this.stepInstantiate = () => {
@@ -330,6 +366,8 @@ class Main {
         Building.Clear();
         poc.getDataAt(lon, lat, () => {
         });
+        let p = BABYLON.MeshBuilder.CreateBox("Box", { size: 0.5, width: 0.5, height: 1.8 }, this.scene);
+        p.position.y = 0.9;
     }
     animate() {
         this.engine.runRenderLoop(() => {
@@ -384,7 +422,7 @@ class Poc {
                     }
                     if (nodes[i].tagName === "way") {
                         let itsBuilding = false;
-                        let level = 1;
+                        let level = Math.floor(Math.random() * 3 + 1);
                         let nodeIChildren = nodes[i].children;
                         for (let j = 0; j < nodeIChildren.length; j++) {
                             if (nodeIChildren[j].tagName === "tag") {
@@ -463,7 +501,7 @@ class PowerStation extends BABYLON.Mesh {
 PowerStation.instances = [];
 var RAD2DEG = 180 / Math.PI;
 var PI_4 = Math.PI / 4;
-var zoom = 20;
+var zoom = 25;
 class Tools {
     static LonToX(lon) {
         return (lon + 180) / 360 * Math.pow(2, zoom) - Main.medX;
@@ -477,6 +515,10 @@ class Tools {
     }
     static ZToLat(z) {
         return Math.atan(Math.sinh(Math.PI - (z + Main.medZ) / Math.pow(2, zoom) * 2 * Math.PI)) * 180 / Math.PI;
+    }
+    static RotateToRef(v, alpha, ref) {
+        ref.x = Math.cos(alpha) * v.x - Math.sin(alpha) * v.y;
+        ref.y = Math.sin(alpha) * v.x + Math.cos(alpha) * v.y;
     }
 }
 /*
