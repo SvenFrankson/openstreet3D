@@ -1,9 +1,11 @@
 class RoadData {
 
     public nodes: BABYLON.Vector2[];
+    public width: number;
     
     constructor() {
         this.nodes = [];
+        this.width = 4;
     }
 
     public pushNode(node: BABYLON.Vector2): void {
