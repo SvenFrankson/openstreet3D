@@ -47,7 +47,7 @@ class Main {
         this.camera.attachControl(this.canvas);
         this.camera.setPosition(
             new BABYLON.Vector3(
-                -50, 50, -50
+                -200, 200, -200
             )
         );
 
@@ -55,7 +55,7 @@ class Main {
         Main.okMaterial.diffuseColor = BABYLON.Color3.FromHexString("#ffffff");
         Main.okMaterial.backFaceCulling = false;
 
-        let ground: BABYLON.Mesh = BABYLON.Mesh.CreateDisc("Ground", 40, 64, this.scene);
+        let ground: BABYLON.Mesh = BABYLON.Mesh.CreateDisc("Ground", 500, 64, this.scene);
         ground.rotation.x = Math.PI / 2;
 
         let groundMaterial: BABYLON.StandardMaterial = new BABYLON.StandardMaterial("Ground", this.scene);
