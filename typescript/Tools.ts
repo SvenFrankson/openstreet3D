@@ -24,6 +24,20 @@ class Tools {
         ref.x = Math.cos(alpha) * v.x - Math.sin(alpha) * v.y;
         ref.y = Math.sin(alpha) * v.x + Math.cos(alpha) * v.y;
     }
+
+    public static AngleFromTo(a: BABYLON.Vector2, b: BABYLON.Vector2): number {
+        let angle: number = Math.acos(
+            BABYLON.Vector2.Dot(
+                a,
+                b
+            )
+        )
+        let cross = a.x * b.y - b.x * a.y;
+        if (cross < 0) {
+            angle = -angle;
+        }
+        return angle;
+    }
 }
 
 /*

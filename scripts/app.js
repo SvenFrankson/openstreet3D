@@ -201,8 +201,112 @@ class RoadMaker {
                 Failure.update();
             }
         };
+        this._x = new BABYLON.Vector2(1, 0);
+        this._a = BABYLON.Vector2.Zero();
+        this._b = BABYLON.Vector2.Zero();
+        this._na = BABYLON.Vector2.Zero();
+        this._nb = BABYLON.Vector2.Zero();
         this.toDoList = [];
         Main.instance.scene.registerBeforeRender(this.stepInstantiate);
+    }
+    instantiateNetwork(scene) {
+        let nodesMap = new Map();
+        let positions = [];
+        let indices = [];
+        this.toDoList.forEach((road) => {
+            for (let i = 0; i < road.nodes.length - 1; i++) {
+                let a = road.nodes[i];
+                let b = road.nodes[i + 1];
+                let aLinks = nodesMap.get(a);
+                if (!aLinks) {
+                    aLinks = [];
+                    nodesMap.set(a, aLinks);
+                }
+                let bLinks = nodesMap.get(b);
+                if (!bLinks) {
+                    bLinks = [];
+                    nodesMap.set(b, bLinks);
+                }
+                if (aLinks.indexOf(b) === -1) {
+                    aLinks.push(b);
+                }
+                if (bLinks.indexOf(a) === -1) {
+                    bLinks.push(a);
+                }
+            }
+        });
+        nodesMap.forEach((links, node) => {
+            this._a.copyFrom(links[0]);
+            this._a.subtractInPlace(node);
+            this._a.normalize();
+            links.sort((a, b) => {
+                this._a.copyFrom(a);
+                this._a.subtractInPlace(node);
+                this._a.normalize();
+                this._b.copyFrom(b);
+                this._b.subtractInPlace(node);
+                this._b.normalize();
+                return Tools.AngleFromTo(this._x, this._a) - Tools.AngleFromTo(this._x, this._b);
+            });
+            let intersections = [];
+            for (let i = 0; i < links.length; i++) {
+                this._a.copyFrom(links[i]);
+                this._a.subtractInPlace(node);
+                this._a.normalize();
+                if (links[i + 1]) {
+                    this._b.copyFrom(links[i + 1]);
+                }
+                else {
+                    this._b.copyFrom(links[0]);
+                }
+                this._b.subtractInPlace(node);
+                this._b.normalize();
+                Tools.RotateToRef(this._a, Math.PI / 2, this._na);
+                Tools.RotateToRef(this._b, -Math.PI / 2, this._nb);
+                let x1 = node.x + this._na.x;
+                let y1 = node.y + this._na.y;
+                let x2 = x1 + this._a.x;
+                let y2 = y1 + this._a.y;
+                let x3 = node.x + this._nb.x;
+                let y3 = node.y + this._nb.y;
+                let x4 = x3 + this._b.x;
+                let y4 = y3 + this._b.y;
+                let det = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+                if (det === 0) {
+                    intersections.push(x1, y1);
+                }
+                else {
+                    let x = (x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4);
+                    x = x / det;
+                    let y = (x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4);
+                    y = y / det;
+                    intersections.push(x, y);
+                }
+            }
+            if (intersections.length > 2) {
+                let nodeIndices = Earcut.earcut(intersections, [], 2);
+                for (let i = 0; i < nodeIndices.length; i++) {
+                    nodeIndices[i] += positions.length / 3;
+                }
+                indices.push(...nodeIndices);
+                for (let i = 0; i < intersections.length / 2; i++) {
+                    positions.push(intersections[2 * i], 0.5, intersections[2 * i + 1]);
+                }
+            }
+            if (intersections.length > 8) {
+                console.log("-----");
+                intersections.forEach((n) => {
+                    console.log(n);
+                });
+            }
+        });
+        let data = new BABYLON.VertexData();
+        data.positions = positions;
+        data.indices = indices;
+        console.log(data);
+        let mesh = new BABYLON.Mesh("RoadNetwork", scene);
+        data.applyToMesh(mesh);
+        return mesh;
     }
 }
 var CameraState;
@@ -313,6 +417,136 @@ class Failure {
     }
 }
 Failure.instances = [];
+class BNode {
+    constructor(position) {
+        this.position = BABYLON.Vector2.Zero();
+        this.links = [];
+        this.position.copyFrom(position);
+        this.color = BABYLON.Color3.White();
+    }
+    linkTo(n) {
+        if (this.links.indexOf(n) === -1) {
+            if (n.links.indexOf(this) === -1) {
+                this.links.push(n);
+                n.links.push(this);
+            }
+        }
+    }
+    unlinkFrom(n) {
+        let indexN = this.links.indexOf(n);
+        let indexThis = n.links.indexOf(this);
+        if (indexN !== -1) {
+            if (indexThis !== -1) {
+                this.links.splice(indexN, 1);
+                n.links.splice(indexThis, 1);
+            }
+        }
+    }
+    split(a, b) {
+        a.unlinkFrom(b);
+        this.linkTo(a);
+        this.linkTo(b);
+    }
+    static areLinked(a, b) {
+        let indexB = a.links.indexOf(b);
+        let indexA = b.links.indexOf(a);
+        if (indexA !== -1) {
+            if (indexB !== -1) {
+                return true;
+            }
+        }
+        return false;
+    }
+    static intersect(origin, direction, a, b) {
+        let x1 = a.position.x;
+        let y1 = a.position.y;
+        let x2 = b.position.x;
+        let y2 = b.position.y;
+        let x3 = origin.x;
+        let y3 = origin.y;
+        let x4 = x3 + direction.x;
+        let y4 = y3 + direction.y;
+        let det = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+        if (det === 0) {
+            return undefined;
+        }
+        let x = (x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4);
+        x = x / det;
+        let y = (x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4);
+        y = y / det;
+        let intersection = new BABYLON.Vector2(x, y);
+        BNode._oi.copyFrom(intersection);
+        BNode._oi.subtractInPlace(origin);
+        BNode._ia.copyFrom(a.position);
+        BNode._ia.subtractInPlace(intersection);
+        BNode._ib.copyFrom(b.position);
+        BNode._ib.subtractInPlace(intersection);
+        if (BABYLON.Vector2.Dot(BNode._oi, direction) < 0) {
+            return undefined;
+        }
+        if (BABYLON.Vector2.Dot(BNode._ia, BNode._ib) > 0) {
+            return undefined;
+        }
+        return new BABYLON.Vector2(x, y);
+    }
+}
+BNode._oi = BABYLON.Vector2.Zero();
+BNode._ia = BABYLON.Vector2.Zero();
+BNode._ib = BABYLON.Vector2.Zero();
+class IntersectionInfo {
+    constructor(a, b, position) {
+        this.a = a;
+        this.b = b;
+        this.position = position;
+    }
+}
+class Graph {
+    constructor() {
+        this.nodes = [];
+    }
+    intersect(origin, direction) {
+        let sqrDist = Infinity;
+        let intersectionInfo = undefined;
+        for (let i = 0; i < this.nodes.length; i++) {
+            let a = this.nodes[i];
+            for (let j = i + 1; j < this.nodes.length; j++) {
+                let b = this.nodes[j];
+                if (BNode.areLinked(a, b)) {
+                    let intersection = BNode.intersect(origin, direction, a, b);
+                    if (intersection) {
+                        let dist = BABYLON.Vector2.DistanceSquared(intersection, origin);
+                        if (dist > 0.25 && dist < sqrDist) {
+                            intersectionInfo = new IntersectionInfo(a, b, intersection);
+                        }
+                    }
+                }
+            }
+        }
+        return intersectionInfo;
+    }
+    display(scene) {
+        for (let i = 0; i < this.nodes.length; i++) {
+            let a = this.nodes[i];
+            let nodeMesh = BABYLON.MeshBuilder.CreateBox("Node", { size: 0.2 }, scene);
+            nodeMesh.position.copyFromFloats(a.position.x, 0, a.position.y);
+            let nodeMeshMaterial = new BABYLON.StandardMaterial("NodeMaterial", scene);
+            nodeMeshMaterial.diffuseColor.copyFrom(a.color);
+            nodeMesh.material = nodeMeshMaterial;
+            for (let j = i + 1; j < this.nodes.length; j++) {
+                let b = this.nodes[j];
+                if (BNode.areLinked(a, b)) {
+                    let linkMesh = BABYLON.MeshBuilder.CreateTube("Link", {
+                        path: [
+                            new BABYLON.Vector3(a.position.x, 0, a.position.y),
+                            new BABYLON.Vector3(b.position.x, 0, b.position.y)
+                        ],
+                        radius: 0.05
+                    }, scene);
+                }
+            }
+        }
+    }
+}
 class GroundManager {
     constructor(w, h) {
         this.k = 0;
@@ -397,6 +631,7 @@ class Main {
         let lat = Tools.ZToLat(0);
         Building.Clear();
         poc.getDataAt(lon, lat, () => {
+            this.roadMaker.instantiateNetwork(this.scene);
         });
         let p = BABYLON.MeshBuilder.CreateBox("Box", { size: 0.5, width: 0.5, height: 1.8 }, this.scene);
         p.position.y = 0.9;
@@ -430,7 +665,7 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 class Poc {
     constructor() {
-        this.tileSize = 0.005;
+        this.tileSize = 0.0025;
     }
     getDataAt(long, lat, callback) {
         let box = (long - this.tileSize).toFixed(7) + "," + (lat - this.tileSize).toFixed(7) + "," + (long + this.tileSize).toFixed(7) + "," + (lat + this.tileSize).toFixed(7);
@@ -584,6 +819,14 @@ class Tools {
     static RotateToRef(v, alpha, ref) {
         ref.x = Math.cos(alpha) * v.x - Math.sin(alpha) * v.y;
         ref.y = Math.sin(alpha) * v.x + Math.cos(alpha) * v.y;
+    }
+    static AngleFromTo(a, b) {
+        let angle = Math.acos(BABYLON.Vector2.Dot(a, b));
+        let cross = a.x * b.y - b.x * a.y;
+        if (cross < 0) {
+            angle = -angle;
+        }
+        return angle;
     }
 }
 /*

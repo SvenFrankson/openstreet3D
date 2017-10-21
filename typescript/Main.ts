@@ -75,7 +75,7 @@ class Main {
             lon,
             lat,
             () => {
-                
+                this.roadMaker.instantiateNetwork(this.scene);
             }
         );
 
