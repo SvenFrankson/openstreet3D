@@ -25,6 +25,7 @@ class Poc {
                         }
                         if (nodes[i].tagName === "way") {
                             let itsBuilding: boolean = false;
+                            let itsRoad: boolean = false;
                             let level: number = Math.floor(Math.random() * 3 + 1);
                             let nodeIChildren = nodes[i].children;
                             for (let j: number = 0; j < nodeIChildren.length; j++) {
@@ -35,6 +36,9 @@ class Poc {
                                         }
                                         if (nodeIChildren[j].getAttribute("k") === "building:levels") {
                                             level = parseInt(nodeIChildren[j].getAttribute("v"));
+                                        }
+                                        if (nodeIChildren[j].getAttribute("k") === "highway") {
+                                            itsRoad = true;
                                         }
                                     }
                                 }
@@ -50,7 +54,16 @@ class Poc {
                                     }
                                 }
                                 Main.instance.buildingMaker.toDoList.push(newBuilding);
-                                BuildingData.instances.push(newBuilding);
+                            } else if (itsRoad) {
+                                let newRoad: RoadData = new RoadData();
+                                for (let j: number = 0; j < nodeIChildren.length; j++) {
+                                    if (nodeIChildren[j].tagName === "nd") {
+                                        let nodeRef: number = parseInt(nodeIChildren[j].getAttribute("ref"));
+                                        let node: BABYLON.Vector2 = mapNodes.get(nodeRef);
+                                        newRoad.pushNode(node);
+                                    }
+                                }
+                                Main.instance.roadMaker.toDoList.push(newRoad);
                             }
                         }
                     }

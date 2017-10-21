@@ -44,6 +44,7 @@ Building.center = BABYLON.Vector3.Zero();
 Building.radius = 10;
 class BuildingData {
     constructor() {
+        BuildingData.instances.push(this);
         this.shape = [];
         this.level = 1;
     }
@@ -52,30 +53,32 @@ class BuildingData {
     }
     instantiate(scene) {
         let building = new Building(scene);
-        let rawData = BuildingData.extrudeToSolidRaw(this.shape, this.level * 4);
+        let rawData = BuildingData.extrudeToSolidRaw(this.shape, this.level);
         BuildingData.vertexDataFromRawData(rawData).applyToMesh(building);
         building.position.x = rawData.position.x;
         building.position.z = rawData.position.y;
         building.freezeWorldMatrix();
         return building;
     }
-    static extrudeToSolidRaw(points, height) {
+    static extrudeToSolidRaw(points, level) {
         let positions = [];
         let indices = [];
         let colors = [];
         let position = BABYLON.Vector2.Zero();
         let radius = 0;
+        let color1 = BABYLON.Color3.FromHexString(Config.color1);
+        let color2 = BABYLON.Color3.FromHexString(Config.backgroundColor);
         for (let i = 0; i < points.length; i++) {
             position.addInPlace(points[i]);
         }
         position.scaleInPlace(1 / points.length);
         for (let i = 0; i < points.length; i++) {
-            positions.push(points[i].x - position.x, height, points[i].y - position.y);
-            colors.push(1, 1, 1, 1);
+            positions.push(points[i].x - position.x, level * 2.5, points[i].y - position.y);
+            colors.push(color1.r, color1.g, color1.b, 1);
         }
         for (let i = 0; i < points.length; i++) {
             positions.push(points[i].x - position.x, 0, points[i].y - position.y);
-            colors.push(0.3, 0.3, 0.3, 1);
+            colors.push(color2.r, color2.g, color2.b, 1);
         }
         for (let i = 0; i < points.length; i++) {
             let a = i + points.length;
@@ -96,6 +99,19 @@ class BuildingData {
             topPoints.push(points[i].x, points[i].y);
         }
         indices.push(...Earcut.earcut(topPoints, [], 2));
+        for (let i = 0; i < points.length; i++) {
+            let a = points[i];
+            let b = points[i + 1];
+            if (!b) {
+                b = points[0];
+            }
+            let l = BABYLON.Vector2.Distance(a, b);
+            for (let d = 1; d < l - 2; d += 2) {
+                for (let h = 0; h < level; h++) {
+                    BuildingData.pushWindow(points[i].x - position.x, points[i].y - position.y, points[i + 1].x - position.x, points[i + 1].y - position.y, d, 0.8 + h * 2.5, positions, indices, colors);
+                }
+            }
+        }
         return {
             positions: positions,
             indices: indices,
@@ -103,6 +119,28 @@ class BuildingData {
             position: position,
             radius: 1
         };
+    }
+    static pushWindow(x1, y1, x2, y2, x, h, positions, indices, colors) {
+        let color = BABYLON.Color3.FromHexString(Config.color2);
+        BuildingData._dir.copyFromFloats(x2 - x1, y2 - y1);
+        BuildingData._dir.normalize();
+        Tools.RotateToRef(BuildingData._dir, -Math.PI / 2, BuildingData._norm);
+        let p0 = new BABYLON.Vector2(x1, y1);
+        p0.addInPlace(BuildingData._dir.scale(x));
+        p0.addInPlace(BuildingData._norm.scale(0.1));
+        let p1 = p0.clone();
+        p1.addInPlace(BuildingData._dir);
+        let i = positions.length / 3;
+        positions.push(p0.x, h, p0.y);
+        colors.push(color.r, color.g, color.b, 1);
+        positions.push(p1.x, h, p1.y);
+        colors.push(color.r, color.g, color.b, 1);
+        positions.push(p1.x, h + 1, p1.y);
+        colors.push(color.r, color.g, color.b, 1);
+        positions.push(p0.x, h + 1, p0.y);
+        colors.push(color.r, color.g, color.b, 1);
+        indices.push(i, i + 1, i + 2);
+        indices.push(i, i + 2, i + 3);
     }
     static vertexDataFromRawData(rawData) {
         let data = new BABYLON.VertexData();
@@ -121,7 +159,31 @@ class BuildingData {
     }
 }
 BuildingData.instances = [];
+BuildingData._dir = BABYLON.Vector2.Zero();
+BuildingData._norm = BABYLON.Vector2.Zero();
 class BuildingMaker {
+    constructor() {
+        this.stepInstantiate = () => {
+            let t0 = (new Date()).getTime();
+            let t1 = t0;
+            let work = false;
+            if (this.toDoList.length > 0) {
+                work = true;
+            }
+            while (this.toDoList.length > 0 && (t1 - t0) < 10) {
+                let data = this.toDoList.pop();
+                data.instantiate(Main.instance.scene);
+                t1 = (new Date()).getTime();
+            }
+            if (work && this.toDoList.length === 0) {
+                Failure.update();
+            }
+        };
+        this.toDoList = [];
+        Main.instance.scene.registerBeforeRender(this.stepInstantiate);
+    }
+}
+class RoadMaker {
     constructor() {
         this.stepInstantiate = () => {
             let t0 = (new Date()).getTime();
@@ -218,6 +280,11 @@ class CameraManager {
         Main.instance.scene.registerBeforeRender(this.transitionStep);
     }
 }
+class Config {
+}
+Config.backgroundColor = "#2d1f00";
+Config.color1 = "#b300ba";
+Config.color2 = "#00bab3";
 class Failure {
     constructor(origin, range) {
         Failure.instances.push(this);
@@ -310,6 +377,7 @@ class Main {
         this.scene.clearColor.copyFromFloats(0, 0, 0, 1);
         this.resize();
         this.buildingMaker = new BuildingMaker();
+        this.roadMaker = new RoadMaker();
         let hemisphericLight = new BABYLON.HemisphericLight("Light", BABYLON.Vector3.Up(), this.scene);
         this.light = hemisphericLight;
         this.camera = new BABYLON.ArcRotateCamera("Camera", 0, 0, 1, BABYLON.Vector3.Zero(), this.scene);
@@ -330,6 +398,8 @@ class Main {
         Building.Clear();
         poc.getDataAt(lon, lat, () => {
         });
+        let p = BABYLON.MeshBuilder.CreateBox("Box", { size: 0.5, width: 0.5, height: 1.8 }, this.scene);
+        p.position.y = 0.9;
     }
     animate() {
         this.engine.runRenderLoop(() => {
@@ -384,7 +454,8 @@ class Poc {
                     }
                     if (nodes[i].tagName === "way") {
                         let itsBuilding = false;
-                        let level = 1;
+                        let itsRoad = false;
+                        let level = Math.floor(Math.random() * 3 + 1);
                         let nodeIChildren = nodes[i].children;
                         for (let j = 0; j < nodeIChildren.length; j++) {
                             if (nodeIChildren[j].tagName === "tag") {
@@ -394,6 +465,9 @@ class Poc {
                                     }
                                     if (nodeIChildren[j].getAttribute("k") === "building:levels") {
                                         level = parseInt(nodeIChildren[j].getAttribute("v"));
+                                    }
+                                    if (nodeIChildren[j].getAttribute("k") === "highway") {
+                                        itsRoad = true;
                                     }
                                 }
                             }
@@ -409,7 +483,17 @@ class Poc {
                                 }
                             }
                             Main.instance.buildingMaker.toDoList.push(newBuilding);
-                            BuildingData.instances.push(newBuilding);
+                        }
+                        else if (itsRoad) {
+                            let newRoad = new RoadData();
+                            for (let j = 0; j < nodeIChildren.length; j++) {
+                                if (nodeIChildren[j].tagName === "nd") {
+                                    let nodeRef = parseInt(nodeIChildren[j].getAttribute("ref"));
+                                    let node = mapNodes.get(nodeRef);
+                                    newRoad.pushNode(node);
+                                }
+                            }
+                            Main.instance.roadMaker.toDoList.push(newRoad);
                         }
                     }
                 }
@@ -461,6 +545,25 @@ class PowerStation extends BABYLON.Mesh {
     }
 }
 PowerStation.instances = [];
+class RoadData {
+    constructor() {
+        this.nodes = [];
+    }
+    pushNode(node) {
+        this.nodes.push(node);
+    }
+    instantiate(scene) {
+        let path = [];
+        this.nodes.forEach((n) => {
+            path.push(new BABYLON.Vector3(n.x, 0.1, n.y));
+        });
+        let mesh = BABYLON.MeshBuilder.CreateTube("Road", { path: path, radius: 0.5 }, scene);
+        let roadMaterial = new BABYLON.StandardMaterial("Road", scene);
+        roadMaterial.diffuseColor = BABYLON.Color3.FromHexString(Config.color2);
+        mesh.material = roadMaterial;
+        return mesh;
+    }
+}
 var RAD2DEG = 180 / Math.PI;
 var PI_4 = Math.PI / 4;
 var zoom = 24;
@@ -477,6 +580,10 @@ class Tools {
     }
     static ZToLat(z) {
         return Math.atan(Math.sinh(Math.PI - (z + Main.medZ) / Math.pow(2, zoom) * 2 * Math.PI)) * 180 / Math.PI;
+    }
+    static RotateToRef(v, alpha, ref) {
+        ref.x = Math.cos(alpha) * v.x - Math.sin(alpha) * v.y;
+        ref.y = Math.sin(alpha) * v.x + Math.cos(alpha) * v.y;
     }
 }
 /*

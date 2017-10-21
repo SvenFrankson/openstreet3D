@@ -10,6 +10,7 @@ class Main {
     public ui: UI;
     public groundManager: GroundManager;
     public buildingMaker: BuildingMaker;
+    public roadMaker: RoadMaker;
 
     public static okMaterial: BABYLON.StandardMaterial;
     public static nokMaterial: BABYLON.StandardMaterial;
@@ -39,6 +40,7 @@ class Main {
         this.resize();
 
         this.buildingMaker = new BuildingMaker();
+        this.roadMaker = new RoadMaker();
 
         let hemisphericLight: BABYLON.HemisphericLight = new BABYLON.HemisphericLight("Light", BABYLON.Vector3.Up(), this.scene);
         this.light = hemisphericLight;
