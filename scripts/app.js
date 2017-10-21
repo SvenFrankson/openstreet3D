@@ -183,6 +183,62 @@ class BuildingMaker {
         Main.instance.scene.registerBeforeRender(this.stepInstantiate);
     }
 }
+class RNode {
+    constructor(position) {
+        this.edges = [];
+        this.intersections = [];
+        this._x = new BABYLON.Vector2(1, 0);
+        this._a = BABYLON.Vector2.Zero();
+        this._b = BABYLON.Vector2.Zero();
+        this.position = position;
+    }
+    linkTo(n) {
+        if (!this.isLinkedTo(n)) {
+            let edge = new REdge(this, n);
+            this.edges.push(edge);
+            n.edges.push(edge);
+        }
+    }
+    isLinkedTo(n) {
+        for (let i = 0; i < this.edges.length; i++) {
+            if (this.edges[i].a === n) {
+                return true;
+            }
+            if (this.edges[i].b === n) {
+                return true;
+            }
+        }
+        return false;
+    }
+    sortEdges() {
+        this.edges.sort((a, b) => {
+            this._a.copyFrom(a.other(this).position);
+            this._a.subtractInPlace(this.position);
+            this._a.normalize();
+            this._b.copyFrom(b.other(this).position);
+            this._b.subtractInPlace(this.position);
+            this._b.normalize();
+            return Tools.AngleFromTo(this._x, this._a) - Tools.AngleFromTo(this._x, this._b);
+        });
+    }
+}
+class REdge {
+    constructor(a, b) {
+        this.intersections = [];
+        this.a = a;
+        this.b = b;
+    }
+    other(n) {
+        if (this.a === n) {
+            return this.b;
+        }
+        if (this.b === n) {
+            return this.a;
+        }
+        console.warn("Request edge 'other node' giving unrelated node.");
+        return undefined;
+    }
+}
 class RoadMaker {
     constructor() {
         this.stepInstantiate = () => {
@@ -215,60 +271,44 @@ class RoadMaker {
         let indices = [];
         this.toDoList.forEach((road) => {
             for (let i = 0; i < road.nodes.length - 1; i++) {
-                let a = road.nodes[i];
-                let b = road.nodes[i + 1];
-                let aLinks = nodesMap.get(a);
-                if (!aLinks) {
-                    aLinks = [];
-                    nodesMap.set(a, aLinks);
+                let aPosition = road.nodes[i];
+                let bPosition = road.nodes[i + 1];
+                let aRNode = nodesMap.get(aPosition);
+                if (!aRNode) {
+                    aRNode = new RNode(aPosition);
+                    nodesMap.set(aPosition, aRNode);
                 }
-                let bLinks = nodesMap.get(b);
-                if (!bLinks) {
-                    bLinks = [];
-                    nodesMap.set(b, bLinks);
+                let bRNode = nodesMap.get(bPosition);
+                if (!bRNode) {
+                    bRNode = new RNode(bPosition);
+                    nodesMap.set(bPosition, bRNode);
                 }
-                if (aLinks.indexOf(b) === -1) {
-                    aLinks.push(b);
-                }
-                if (bLinks.indexOf(a) === -1) {
-                    bLinks.push(a);
-                }
+                aRNode.linkTo(bRNode);
             }
         });
-        nodesMap.forEach((links, node) => {
-            this._a.copyFrom(links[0]);
-            this._a.subtractInPlace(node);
-            this._a.normalize();
-            links.sort((a, b) => {
-                this._a.copyFrom(a);
-                this._a.subtractInPlace(node);
-                this._a.normalize();
-                this._b.copyFrom(b);
-                this._b.subtractInPlace(node);
-                this._b.normalize();
-                return Tools.AngleFromTo(this._x, this._a) - Tools.AngleFromTo(this._x, this._b);
-            });
+        nodesMap.forEach((rNode) => {
+            rNode.sortEdges();
             let intersections = [];
-            for (let i = 0; i < links.length; i++) {
-                this._a.copyFrom(links[i]);
-                this._a.subtractInPlace(node);
+            for (let i = 0; i < rNode.edges.length; i++) {
+                this._a.copyFrom(rNode.edges[i].other(rNode).position);
+                this._a.subtractInPlace(rNode.position);
                 this._a.normalize();
-                if (links[i + 1]) {
-                    this._b.copyFrom(links[i + 1]);
+                if (rNode.edges[i + 1]) {
+                    this._b.copyFrom(rNode.edges[i + 1].other(rNode).position);
                 }
                 else {
-                    this._b.copyFrom(links[0]);
+                    this._b.copyFrom(rNode.edges[0].other(rNode).position);
                 }
-                this._b.subtractInPlace(node);
+                this._b.subtractInPlace(rNode.position);
                 this._b.normalize();
                 Tools.RotateToRef(this._a, Math.PI / 2, this._na);
                 Tools.RotateToRef(this._b, -Math.PI / 2, this._nb);
-                let x1 = node.x + this._na.x;
-                let y1 = node.y + this._na.y;
+                let x1 = rNode.position.x + this._na.x;
+                let y1 = rNode.position.y + this._na.y;
                 let x2 = x1 + this._a.x;
                 let y2 = y1 + this._a.y;
-                let x3 = node.x + this._nb.x;
-                let y3 = node.y + this._nb.y;
+                let x3 = rNode.position.x + this._nb.x;
+                let y3 = rNode.position.y + this._nb.y;
                 let x4 = x3 + this._b.x;
                 let y4 = y3 + this._b.y;
                 let det = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
@@ -292,12 +332,6 @@ class RoadMaker {
                 for (let i = 0; i < intersections.length / 2; i++) {
                     positions.push(intersections[2 * i], 0.5, intersections[2 * i + 1]);
                 }
-            }
-            if (intersections.length > 8) {
-                console.log("-----");
-                intersections.forEach((n) => {
-                    console.log(n);
-                });
             }
         });
         let data = new BABYLON.VertexData();
