@@ -81,8 +81,12 @@ class BuildingData {
         indices.push(...Earcut.earcut(topPoints, [], 2));
 
         for (let i: number = 0; i < points.length; i++) {
+            let iP: number = i + 1;
+            if (iP >= points.length) {
+                iP = 0;
+            }
             let a: BABYLON.Vector2 = points[i];
-            let b: BABYLON.Vector2 = points[i + 1];
+            let b: BABYLON.Vector2 = points[iP];
             if (!b) {
                 b = points[0];
             }
@@ -92,8 +96,8 @@ class BuildingData {
                     BuildingData.pushWindow(
                         points[i].x - position.x,
                         points[i].y - position.y,
-                        points[i + 1].x - position.x,
-                        points[i + 1].y - position.y,
+                        points[iP].x - position.x,
+                        points[iP].y - position.y,
                         d, 
                         0.8 + h * 2.5,
                         positions,

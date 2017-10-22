@@ -100,15 +100,19 @@ class BuildingData {
         }
         indices.push(...Earcut.earcut(topPoints, [], 2));
         for (let i = 0; i < points.length; i++) {
+            let iP = i + 1;
+            if (iP >= points.length) {
+                iP = 0;
+            }
             let a = points[i];
-            let b = points[i + 1];
+            let b = points[iP];
             if (!b) {
                 b = points[0];
             }
             let l = BABYLON.Vector2.Distance(a, b);
             for (let d = 1; d < l - 2; d += 2) {
                 for (let h = 0; h < level; h++) {
-                    BuildingData.pushWindow(points[i].x - position.x, points[i].y - position.y, points[i + 1].x - position.x, points[i + 1].y - position.y, d, 0.8 + h * 2.5, positions, indices, colors);
+                    BuildingData.pushWindow(points[i].x - position.x, points[i].y - position.y, points[iP].x - position.x, points[iP].y - position.y, d, 0.8 + h * 2.5, positions, indices, colors);
                 }
             }
         }
@@ -588,10 +592,14 @@ class Poc {
                                 if (nodeIChildren[j].tagName === "nd") {
                                     let nodeRef = parseInt(nodeIChildren[j].getAttribute("ref"));
                                     let node = mapNodes.get(nodeRef);
-                                    newBuilding.pushNode(node);
+                                    if (node) {
+                                        newBuilding.pushNode(node);
+                                    }
                                 }
                             }
-                            Main.instance.buildingMaker.toDoList.push(newBuilding);
+                            if (newBuilding.shape.length > 0) {
+                                Main.instance.buildingMaker.toDoList.push(newBuilding);
+                            }
                         }
                         else if (itsRoad) {
                             let newRoad = new RoadData();

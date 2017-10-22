@@ -50,10 +50,14 @@ class Poc {
                                     if (nodeIChildren[j].tagName === "nd") {
                                         let nodeRef: number = parseInt(nodeIChildren[j].getAttribute("ref"));
                                         let node: BABYLON.Vector2 = mapNodes.get(nodeRef);
-                                        newBuilding.pushNode(node);
+                                        if (node) {
+                                            newBuilding.pushNode(node);
+                                        }
                                     }
                                 }
-                                Main.instance.buildingMaker.toDoList.push(newBuilding);
+                                if (newBuilding.shape.length > 0) {
+                                    Main.instance.buildingMaker.toDoList.push(newBuilding);
+                                }
                             } else if (itsRoad) {
                                 let newRoad: RoadData = new RoadData();
                                 for (let j: number = 0; j < nodeIChildren.length; j++) {
