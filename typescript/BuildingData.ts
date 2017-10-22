@@ -10,6 +10,7 @@ class BuildingData {
     public static instances: BuildingData[] = [];
     public shape: BABYLON.Vector2[];
     public level: number;
+    public doorIndex: number = -1;
 
     constructor() {
         BuildingData.instances.push(this);
@@ -21,9 +22,9 @@ class BuildingData {
         this.shape.push(node);
     }
 
-    public instantiate(scene: BABYLON.Scene): Building {
+    public instantiate(graph: RGraph, scene: BABYLON.Scene): Building {
         let building: Building = new Building(scene);
-        let rawData: IRawData = BuildingData.extrudeToSolidRaw(this.shape, this.level);
+        let rawData: IRawData = this.extrudeToSolidRaw(graph, this.shape, this.level);
         BuildingData.vertexDataFromRawData(rawData).applyToMesh(building);
         building.position.x = rawData.position.x;
         building.position.z = rawData.position.y;
@@ -32,9 +33,36 @@ class BuildingData {
         return building;
     }
 
-    public static extrudeToSolidRaw(
-        points: BABYLON.Vector2[], level: number
+    private _origin: BABYLON.Vector2 = BABYLON.Vector2.Zero();
+    private _direction: BABYLON.Vector2 = BABYLON.Vector2.Zero();
+    public computeDoorIndex(graph: RGraph): void {
+        let best: RIntersectionInfo = new RIntersectionInfo();
+        for (let i: number = 0; i < this.shape.length; i++) {
+            let iP: number = (i + 1) % this.shape.length;
+            this._origin.copyFrom(this.shape[i]);
+            this._origin.addInPlace(this.shape[iP]);
+            this._origin.scaleInPlace(0.5);
+            
+            this._direction.copyFrom(this.shape[iP]);
+            this._direction.subtractInPlace(this.shape[i]);
+            Tools.RotateToRef(this._direction, - Math.PI / 2, this._direction);
+            this._direction.normalize();
+
+            let intersection: RIntersectionInfo = graph.intersect(this._origin, this._direction);
+            if (intersection.intersects) {
+                if (!best.intersects || intersection.sqrDistance < best.sqrDistance) {
+                    best = intersection;
+                    this.doorIndex = i;
+                }
+            }
+        }
+    }
+
+    public extrudeToSolidRaw(
+        graph: RGraph, points: BABYLON.Vector2[], level: number
     ): IRawData {
+        this.computeDoorIndex(graph);
+
         let positions: number[] = [];
         let indices: number[] = [];
         let colors: number[] = [];
@@ -108,6 +136,13 @@ class BuildingData {
             }
         }
 
+        if (this.doorIndex >= 0) {
+            let doorIndexP = (this.doorIndex + 1) % points.length;
+            let sphere: BABYLON.Mesh = BABYLON.MeshBuilder.CreateSphere("Door", {diameter: 1}, Main.instance.scene);
+            sphere.position.x = (points[doorIndexP].x + points[this.doorIndex].x) / 2
+            sphere.position.z = (points[doorIndexP].y + points[this.doorIndex].y) / 2
+        }
+
         return {
             positions: positions,
             indices: indices,
@@ -161,18 +196,6 @@ class BuildingData {
 
     public static vertexDataFromRawData(rawData: IRawData): BABYLON.VertexData {
         let data: BABYLON.VertexData = new BABYLON.VertexData();
-
-        data.positions = rawData.positions;
-        data.indices = rawData.indices;
-        data.colors = rawData.colors;
-
-        return data;
-    }
-
-    public static extrudeToSolid(points: BABYLON.Vector2[], height: number): BABYLON.VertexData {
-        let data: BABYLON.VertexData = new BABYLON.VertexData();
-
-        let rawData = BuildingData.extrudeToSolidRaw(points, height);
 
         data.positions = rawData.positions;
         data.indices = rawData.indices;

@@ -1,7 +1,31 @@
+class RIntersectionInfo {
+    
+    public intersects: boolean = false;
+    public position: BABYLON.Vector2;
+    public sqrDistance: number;
+}
+
 class RGraph {
 
     public nodes: Map<BABYLON.Vector2, RNode> = new Map<BABYLON.Vector2, RNode>();
     public edges: REdge[] = [];
+
+    public intersect(origin: BABYLON.Vector2, direction: BABYLON.Vector2): RIntersectionInfo {
+        let result: RIntersectionInfo = new RIntersectionInfo();
+        
+        this.edges.forEach(
+            (e: REdge) => {
+                let currentResult: RIntersectionInfo = e.intersect(origin, direction);
+                if (currentResult.intersects) {
+                    if (!result.intersects || currentResult.sqrDistance < result.sqrDistance) {
+                        result = currentResult;
+                    }
+                }
+            }
+        );
+
+        return result;
+    }
 }
 
 class RNode {
@@ -85,6 +109,54 @@ class REdge {
         return undefined;
     }
 
+    private static _oi: BABYLON.Vector2 = BABYLON.Vector2.Zero();
+    private static _ia: BABYLON.Vector2 = BABYLON.Vector2.Zero();
+    private static _ib: BABYLON.Vector2 = BABYLON.Vector2.Zero();
+    public intersect(origin: BABYLON.Vector2, direction: BABYLON.Vector2): RIntersectionInfo {
+        let result: RIntersectionInfo = new RIntersectionInfo();
+        let x1: number = this.a.position.x;
+        let y1: number = this.a.position.y;
+        let x2: number = this.b.position.x;
+        let y2: number = this.b.position.y;
+        let x3: number = origin.x;
+        let y3: number = origin.y;
+        let x4: number = x3 + direction.x;
+        let y4: number = y3 + direction.y;
+
+        let det: number = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+
+        if (det === 0) {
+            return result;
+        }
+
+        let x: number = (x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4);
+        x = x / det;
+        let y: number = (x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4);
+        y = y / det;
+
+        let intersection: BABYLON.Vector2 = new BABYLON.Vector2(x, y);
+
+        REdge._oi.copyFrom(intersection);
+        REdge._oi.subtractInPlace(origin);
+        REdge._ia.copyFrom(this.a.position);
+        REdge._ia.subtractInPlace(intersection);
+        REdge._ib.copyFrom(this.b.position);
+        REdge._ib.subtractInPlace(intersection);
+
+        if (BABYLON.Vector2.Dot(REdge._oi, direction) < 0) {
+            return result;
+        }
+        if (BABYLON.Vector2.Dot(REdge._ia, REdge._ib) > 0) {
+            return result;
+        }
+
+        result.intersects = true;
+        result.position = new BABYLON.Vector2(x, y);
+        result.sqrDistance = BABYLON.Vector2.DistanceSquared(result.position, origin);
+
+        return result;
+    }
+
     private _c: BABYLON.Vector2 = BABYLON.Vector2.Zero();
     private _x: BABYLON.Vector2 = new BABYLON.Vector2(1, 0);
     private _a: BABYLON.Vector2 = BABYLON.Vector2.Zero();
@@ -116,6 +188,7 @@ class REdge {
 class RoadMaker {
 
     public toDoList: RoadData[];
+    public graph: RGraph;
 
     constructor() {
         this.toDoList = [];
@@ -145,7 +218,7 @@ class RoadMaker {
     private _na: BABYLON.Vector2 = BABYLON.Vector2.Zero();
     private _nb: BABYLON.Vector2 = BABYLON.Vector2.Zero();
     public instantiateNetwork(scene: BABYLON.Scene): BABYLON.Mesh {
-        let graph: RGraph = new RGraph();
+        this.graph = new RGraph();
 
         let positions: number[] = [];
         let indices: number[] = [];
@@ -156,22 +229,22 @@ class RoadMaker {
                     let aPosition: BABYLON.Vector2 = road.nodes[i];
                     let bPosition: BABYLON.Vector2 = road.nodes[i + 1];
 
-                    let aRNode: RNode = graph.nodes.get(aPosition);
+                    let aRNode: RNode = this.graph.nodes.get(aPosition);
                     if (!aRNode) {
-                        aRNode = new RNode(aPosition, graph);
-                        graph.nodes.set(aPosition, aRNode);
+                        aRNode = new RNode(aPosition, this.graph);
+                        this.graph.nodes.set(aPosition, aRNode);
                     }
-                    let bRNode: RNode = graph.nodes.get(bPosition);
+                    let bRNode: RNode = this.graph.nodes.get(bPosition);
                     if (!bRNode) {
-                        bRNode = new RNode(bPosition, graph);
-                        graph.nodes.set(bPosition, bRNode);
+                        bRNode = new RNode(bPosition, this.graph);
+                        this.graph.nodes.set(bPosition, bRNode);
                     }
                     aRNode.linkTo(bRNode, road.width);
                 }
             }
         );
 
-        graph.nodes.forEach(
+        this.graph.nodes.forEach(
             (rNode: RNode) => {
                 
                 rNode.sortEdges();
@@ -244,7 +317,7 @@ class RoadMaker {
             }
         );
 
-        graph.edges.forEach(
+        this.graph.edges.forEach(
             (e: REdge) => {
                 if (e.intersections.length === 4) {
                     e.sortIntersections();
