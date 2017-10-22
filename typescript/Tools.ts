@@ -1,6 +1,6 @@
 var RAD2DEG = 180 / Math.PI;
 var PI_4 = Math.PI / 4;
-var zoom: number = 24;
+var zoom: number = 25;
 
 class Tools {
     public static LonToX(lon: number): number {

@@ -183,231 +183,6 @@ class BuildingMaker {
         Main.instance.scene.registerBeforeRender(this.stepInstantiate);
     }
 }
-class RGraph {
-    constructor() {
-        this.nodes = new Map();
-        this.edges = [];
-    }
-}
-class RNode {
-    constructor(position, graph) {
-        this.edges = [];
-        this.intersections = [];
-        this._x = new BABYLON.Vector2(1, 0);
-        this._a = BABYLON.Vector2.Zero();
-        this._b = BABYLON.Vector2.Zero();
-        this.position = position;
-        graph.nodes.set(position, this);
-        this.graph = graph;
-    }
-    linkTo(n, width) {
-        if (!this.isLinkedTo(n)) {
-            let edge = new REdge(this, n, width, this.graph);
-            this.edges.push(edge);
-            n.edges.push(edge);
-        }
-    }
-    isLinkedTo(n) {
-        for (let i = 0; i < this.edges.length; i++) {
-            if (this.edges[i].a === n) {
-                return true;
-            }
-            if (this.edges[i].b === n) {
-                return true;
-            }
-        }
-        return false;
-    }
-    sortEdges() {
-        this.edges.sort((a, b) => {
-            this._a.copyFrom(a.other(this).position);
-            this._a.subtractInPlace(this.position);
-            this._a.normalize();
-            this._b.copyFrom(b.other(this).position);
-            this._b.subtractInPlace(this.position);
-            this._b.normalize();
-            return Tools.AngleFromTo(this._x, this._a) - Tools.AngleFromTo(this._x, this._b);
-        });
-    }
-}
-class REdge {
-    constructor(a, b, width, graph) {
-        this.intersections = [];
-        this._c = BABYLON.Vector2.Zero();
-        this._x = new BABYLON.Vector2(1, 0);
-        this._a = BABYLON.Vector2.Zero();
-        this._b = BABYLON.Vector2.Zero();
-        this.a = a;
-        this.b = b;
-        this.width = width;
-        graph.edges.push(this);
-    }
-    other(n) {
-        if (this.a === n) {
-            return this.b;
-        }
-        if (this.b === n) {
-            return this.a;
-        }
-        console.warn("Request edge 'other node' giving unrelated node.");
-        return undefined;
-    }
-    sortIntersections() {
-        if (this.intersections.length === 4) {
-            this._c.copyFromFloats(0, 0);
-            for (let i = 0; i < this.intersections.length; i++) {
-                this._c.addInPlace(this.intersections[i]);
-            }
-            this._c.scaleInPlace(0.25);
-            this.intersections.sort((a, b) => {
-                this._a.copyFrom(a);
-                this._a.subtractInPlace(this._c);
-                this._a.normalize();
-                this._b.copyFrom(b);
-                this._b.subtractInPlace(this._c);
-                this._b.normalize();
-                return Tools.AngleFromTo(this._x, this._a) - Tools.AngleFromTo(this._x, this._b);
-            });
-        }
-        else {
-            console.warn("Request edge 'sort intersections' but 4 points cannot be found.");
-        }
-    }
-}
-class RoadMaker {
-    constructor() {
-        this.stepInstantiate = () => {
-            let t0 = (new Date()).getTime();
-            let t1 = t0;
-            let work = false;
-            if (this.toDoList.length > 0) {
-                work = true;
-            }
-            while (this.toDoList.length > 0 && (t1 - t0) < 10) {
-                let data = this.toDoList.pop();
-                data.instantiate(Main.instance.scene);
-                t1 = (new Date()).getTime();
-            }
-            if (work && this.toDoList.length === 0) {
-                Failure.update();
-            }
-        };
-        this._x = new BABYLON.Vector2(1, 0);
-        this._a = BABYLON.Vector2.Zero();
-        this._b = BABYLON.Vector2.Zero();
-        this._na = BABYLON.Vector2.Zero();
-        this._nb = BABYLON.Vector2.Zero();
-        this.toDoList = [];
-        // Main.instance.scene.registerBeforeRender(this.stepInstantiate);
-    }
-    instantiateNetwork(scene) {
-        let graph = new RGraph();
-        let positions = [];
-        let indices = [];
-        this.toDoList.forEach((road) => {
-            for (let i = 0; i < road.nodes.length - 1; i++) {
-                let aPosition = road.nodes[i];
-                let bPosition = road.nodes[i + 1];
-                let aRNode = graph.nodes.get(aPosition);
-                if (!aRNode) {
-                    aRNode = new RNode(aPosition, graph);
-                    graph.nodes.set(aPosition, aRNode);
-                }
-                let bRNode = graph.nodes.get(bPosition);
-                if (!bRNode) {
-                    bRNode = new RNode(bPosition, graph);
-                    graph.nodes.set(bPosition, bRNode);
-                }
-                aRNode.linkTo(bRNode, road.width);
-            }
-        });
-        graph.nodes.forEach((rNode) => {
-            rNode.sortEdges();
-            let intersections = [];
-            console.log(rNode.edges.length);
-            for (let i = 0; i < rNode.edges.length; i++) {
-                let e0 = rNode.edges[i];
-                let e1 = rNode.edges[i + 1];
-                if (!e1) {
-                    e1 = rNode.edges[0];
-                }
-                this._a.copyFrom(e0.other(rNode).position);
-                this._a.subtractInPlace(rNode.position);
-                this._a.normalize();
-                this._b.copyFrom(e1.other(rNode).position);
-                this._b.subtractInPlace(rNode.position);
-                this._b.normalize();
-                Tools.RotateToRef(this._a, Math.PI / 2, this._na);
-                this._na.scaleInPlace(e0.width / 2);
-                Tools.RotateToRef(this._b, -Math.PI / 2, this._nb);
-                this._nb.scaleInPlace(e1.width / 2);
-                let x1 = rNode.position.x + this._na.x;
-                let y1 = rNode.position.y + this._na.y;
-                let x2 = x1 + this._a.x;
-                let y2 = y1 + this._a.y;
-                let x3 = rNode.position.x + this._nb.x;
-                let y3 = rNode.position.y + this._nb.y;
-                let x4 = x3 + this._b.x;
-                let y4 = y3 + this._b.y;
-                let det = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-                if (det < 0.0001) {
-                    if (rNode.edges.length === 1) {
-                        console.log("Deadlock");
-                        intersections.push(x1, y1);
-                        e0.intersections.push(new BABYLON.Vector2(x1, y1));
-                        e1.intersections.push(new BABYLON.Vector2(x3, y3));
-                    }
-                    else {
-                        intersections.push(x1, y1);
-                        e0.intersections.push(new BABYLON.Vector2(x1, y1));
-                        e1.intersections.push(new BABYLON.Vector2(x1, y1));
-                    }
-                }
-                else {
-                    let x = (x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4);
-                    x = x / det;
-                    let y = (x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4);
-                    y = y / det;
-                    intersections.push(x, y);
-                    e0.intersections.push(new BABYLON.Vector2(x, y));
-                    e1.intersections.push(new BABYLON.Vector2(x, y));
-                }
-            }
-            if (intersections.length > 2) {
-                let nodeIndices = Earcut.earcut(intersections, [], 2);
-                for (let i = 0; i < nodeIndices.length; i++) {
-                    nodeIndices[i] += positions.length / 3;
-                }
-                indices.push(...nodeIndices);
-                for (let i = 0; i < intersections.length / 2; i++) {
-                    positions.push(intersections[2 * i], 0.5, intersections[2 * i + 1]);
-                }
-            }
-        });
-        graph.edges.forEach((e) => {
-            console.log(e.intersections.length);
-            if (e.intersections.length === 4) {
-                e.sortIntersections();
-                let index = positions.length / 3;
-                for (let i = 0; i < e.intersections.length; i++) {
-                    positions.push(e.intersections[i].x, 0.5, e.intersections[i].y);
-                }
-                indices.push(index, index + 1, index + 2);
-                indices.push(index, index + 2, index + 3);
-            }
-            else {
-                console.warn("Request edge mesh construction but 4 points cannot be found.");
-            }
-        });
-        let data = new BABYLON.VertexData();
-        data.positions = positions;
-        data.indices = indices;
-        console.log(data);
-        let mesh = new BABYLON.Mesh("RoadNetwork", scene);
-        data.applyToMesh(mesh);
-        return mesh;
-    }
-}
 var CameraState;
 (function (CameraState) {
     CameraState[CameraState["global"] = 0] = "global";
@@ -882,7 +657,7 @@ PowerStation.instances = [];
 class RoadData {
     constructor() {
         this.nodes = [];
-        this.width = 4;
+        this.width = 6;
     }
     pushNode(node) {
         this.nodes.push(node);
@@ -892,7 +667,229 @@ class RoadData {
         this.nodes.forEach((n) => {
             path.push(new BABYLON.Vector3(n.x, 0.1, n.y));
         });
-        let mesh = BABYLON.MeshBuilder.CreateTube("Road", { path: path, radius: 0.5 }, scene);
+        let mesh = BABYLON.MeshBuilder.CreateTube("Road", { path: path, radius: 0.25 }, scene);
+        mesh.position.y = 0.5;
+        return mesh;
+    }
+}
+class RGraph {
+    constructor() {
+        this.nodes = new Map();
+        this.edges = [];
+    }
+}
+class RNode {
+    constructor(position, graph) {
+        this.edges = [];
+        this.intersections = [];
+        this._x = new BABYLON.Vector2(1, 0);
+        this._a = BABYLON.Vector2.Zero();
+        this._b = BABYLON.Vector2.Zero();
+        this.position = position;
+        graph.nodes.set(position, this);
+        this.graph = graph;
+    }
+    linkTo(n, width) {
+        if (!this.isLinkedTo(n)) {
+            let edge = new REdge(this, n, width, this.graph);
+            this.edges.push(edge);
+            n.edges.push(edge);
+        }
+    }
+    isLinkedTo(n) {
+        for (let i = 0; i < this.edges.length; i++) {
+            if (this.edges[i].a === n) {
+                return true;
+            }
+            if (this.edges[i].b === n) {
+                return true;
+            }
+        }
+        return false;
+    }
+    sortEdges() {
+        this.edges.sort((a, b) => {
+            this._a.copyFrom(a.other(this).position);
+            this._a.subtractInPlace(this.position);
+            this._a.normalize();
+            this._b.copyFrom(b.other(this).position);
+            this._b.subtractInPlace(this.position);
+            this._b.normalize();
+            return Tools.AngleFromTo(this._x, this._a) - Tools.AngleFromTo(this._x, this._b);
+        });
+    }
+}
+class REdge {
+    constructor(a, b, width, graph) {
+        this.intersections = [];
+        this._c = BABYLON.Vector2.Zero();
+        this._x = new BABYLON.Vector2(1, 0);
+        this._a = BABYLON.Vector2.Zero();
+        this._b = BABYLON.Vector2.Zero();
+        this.a = a;
+        this.b = b;
+        this.width = width;
+        graph.edges.push(this);
+    }
+    other(n) {
+        if (this.a === n) {
+            return this.b;
+        }
+        if (this.b === n) {
+            return this.a;
+        }
+        console.warn("Request edge 'other node' giving unrelated node.");
+        return undefined;
+    }
+    sortIntersections() {
+        if (this.intersections.length === 4) {
+            this._c.copyFromFloats(0, 0);
+            for (let i = 0; i < this.intersections.length; i++) {
+                this._c.addInPlace(this.intersections[i]);
+            }
+            this._c.scaleInPlace(0.25);
+            this.intersections.sort((a, b) => {
+                this._a.copyFrom(a);
+                this._a.subtractInPlace(this._c);
+                this._a.normalize();
+                this._b.copyFrom(b);
+                this._b.subtractInPlace(this._c);
+                this._b.normalize();
+                return Tools.AngleFromTo(this._x, this._a) - Tools.AngleFromTo(this._x, this._b);
+            });
+        }
+        else {
+            console.warn("Request edge 'sort intersections' but 4 points cannot be found.");
+        }
+    }
+}
+class RoadMaker {
+    constructor() {
+        this.stepInstantiate = () => {
+            let t0 = (new Date()).getTime();
+            let t1 = t0;
+            let work = false;
+            if (this.toDoList.length > 0) {
+                work = true;
+            }
+            while (this.toDoList.length > 0 && (t1 - t0) < 10) {
+                let data = this.toDoList.pop();
+                data.instantiate(Main.instance.scene);
+                t1 = (new Date()).getTime();
+            }
+            if (work && this.toDoList.length === 0) {
+                Failure.update();
+            }
+        };
+        this._x = new BABYLON.Vector2(1, 0);
+        this._a = BABYLON.Vector2.Zero();
+        this._b = BABYLON.Vector2.Zero();
+        this._na = BABYLON.Vector2.Zero();
+        this._nb = BABYLON.Vector2.Zero();
+        this.toDoList = [];
+        // Main.instance.scene.registerBeforeRender(this.stepInstantiate);
+    }
+    instantiateNetwork(scene) {
+        let graph = new RGraph();
+        let positions = [];
+        let indices = [];
+        this.toDoList.forEach((road) => {
+            for (let i = 0; i < road.nodes.length - 1; i++) {
+                let aPosition = road.nodes[i];
+                let bPosition = road.nodes[i + 1];
+                let aRNode = graph.nodes.get(aPosition);
+                if (!aRNode) {
+                    aRNode = new RNode(aPosition, graph);
+                    graph.nodes.set(aPosition, aRNode);
+                }
+                let bRNode = graph.nodes.get(bPosition);
+                if (!bRNode) {
+                    bRNode = new RNode(bPosition, graph);
+                    graph.nodes.set(bPosition, bRNode);
+                }
+                aRNode.linkTo(bRNode, road.width);
+            }
+        });
+        graph.nodes.forEach((rNode) => {
+            rNode.sortEdges();
+            let intersections = [];
+            for (let i = 0; i < rNode.edges.length; i++) {
+                let e0 = rNode.edges[i];
+                let e1 = rNode.edges[i + 1];
+                if (!e1) {
+                    e1 = rNode.edges[0];
+                }
+                this._a.copyFrom(e0.other(rNode).position);
+                this._a.subtractInPlace(rNode.position);
+                this._a.normalize();
+                this._b.copyFrom(e1.other(rNode).position);
+                this._b.subtractInPlace(rNode.position);
+                this._b.normalize();
+                Tools.RotateToRef(this._a, Math.PI / 2, this._na);
+                this._na.scaleInPlace(e0.width / 2);
+                Tools.RotateToRef(this._b, -Math.PI / 2, this._nb);
+                this._nb.scaleInPlace(e1.width / 2);
+                let x1 = rNode.position.x + this._na.x;
+                let y1 = rNode.position.y + this._na.y;
+                let x2 = x1 + this._a.x;
+                let y2 = y1 + this._a.y;
+                let x3 = rNode.position.x + this._nb.x;
+                let y3 = rNode.position.y + this._nb.y;
+                let x4 = x3 + this._b.x;
+                let y4 = y3 + this._b.y;
+                let det = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+                if (Math.abs(det) < 0.0001) {
+                    if (rNode.edges.length === 1) {
+                        intersections.push(x1, y1);
+                        e0.intersections.push(new BABYLON.Vector2(x1, y1));
+                        e1.intersections.push(new BABYLON.Vector2(x3, y3));
+                    }
+                    else {
+                        intersections.push(x1, y1);
+                        e0.intersections.push(new BABYLON.Vector2(x1, y1));
+                        e1.intersections.push(new BABYLON.Vector2(x1, y1));
+                    }
+                }
+                else {
+                    let x = (x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4);
+                    x = x / det;
+                    let y = (x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4);
+                    y = y / det;
+                    intersections.push(x, y);
+                    e0.intersections.push(new BABYLON.Vector2(x, y));
+                    e1.intersections.push(new BABYLON.Vector2(x, y));
+                }
+            }
+            if (intersections.length > 2) {
+                let nodeIndices = Earcut.earcut(intersections, [], 2);
+                for (let i = 0; i < nodeIndices.length; i++) {
+                    nodeIndices[i] += positions.length / 3;
+                }
+                indices.push(...nodeIndices);
+                for (let i = 0; i < intersections.length / 2; i++) {
+                    positions.push(intersections[2 * i], 0.5, intersections[2 * i + 1]);
+                }
+            }
+        });
+        graph.edges.forEach((e) => {
+            if (e.intersections.length === 4) {
+                e.sortIntersections();
+                let index = positions.length / 3;
+                for (let i = 0; i < e.intersections.length; i++) {
+                    positions.push(e.intersections[i].x, 0.5, e.intersections[i].y);
+                }
+                indices.push(index, index + 1, index + 2);
+                indices.push(index, index + 2, index + 3);
+            }
+            else {
+                console.warn("Request edge mesh construction but 4 points cannot be found.");
+            }
+        });
+        let data = new BABYLON.VertexData();
+        data.positions = positions;
+        data.indices = indices;
+        let mesh = new BABYLON.Mesh("RoadNetwork", scene);
+        data.applyToMesh(mesh);
         let roadMaterial = new BABYLON.StandardMaterial("Road", scene);
         roadMaterial.diffuseColor = BABYLON.Color3.FromHexString(Config.color2);
         mesh.material = roadMaterial;
@@ -901,7 +898,7 @@ class RoadData {
 }
 var RAD2DEG = 180 / Math.PI;
 var PI_4 = Math.PI / 4;
-var zoom = 24;
+var zoom = 25;
 class Tools {
     static LonToX(lon) {
         return (lon + 180) / 360 * Math.pow(2, zoom) - Main.medX;
