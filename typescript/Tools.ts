@@ -20,9 +20,11 @@ class Tools {
         return Math.atan(Math.sinh(Math.PI - (z + Main.medZ) / Math.pow(2, zoom) * 2 * Math.PI)) * 180 / Math.PI;
     }
 
+    public static tmp: BABYLON.Vector2 = BABYLON.Vector2.Zero();
     public static RotateToRef(v: BABYLON.Vector2, alpha: number, ref: BABYLON.Vector2): void {
-        ref.x = Math.cos(alpha) * v.x - Math.sin(alpha) * v.y;
-        ref.y = Math.sin(alpha) * v.x + Math.cos(alpha) * v.y;
+        Tools.tmp.x = Math.cos(alpha) * v.x - Math.sin(alpha) * v.y;
+        Tools.tmp.y = Math.sin(alpha) * v.x + Math.cos(alpha) * v.y;
+        ref.copyFrom(Tools.tmp);
     }
 
     public static AngleFromTo(a: BABYLON.Vector2, b: BABYLON.Vector2): number {

@@ -1,10 +1,10 @@
 class Poc {
 
-    public tileSize: number = 0.0025;
+    public tileSize: number = 0.005;
 
     public getDataAt(long: number, lat: number, callback: () => void): void {
         let box: string = (long - this.tileSize).toFixed(7) + "," + (lat - this.tileSize).toFixed(7) + "," + (long + this.tileSize).toFixed(7) + "," + (lat + this.tileSize).toFixed(7);
-        let url: string = "http://api.openstreetmap.org/api/0.6/map?bbox=" + box;
+        let url: string = "./map.xml";
         console.log(url);
         $.ajax(
             {

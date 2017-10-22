@@ -539,11 +539,11 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 class Poc {
     constructor() {
-        this.tileSize = 0.0025;
+        this.tileSize = 0.005;
     }
     getDataAt(long, lat, callback) {
         let box = (long - this.tileSize).toFixed(7) + "," + (lat - this.tileSize).toFixed(7) + "," + (long + this.tileSize).toFixed(7) + "," + (lat + this.tileSize).toFixed(7);
-        let url = "http://api.openstreetmap.org/api/0.6/map?bbox=" + box;
+        let url = "./map.xml";
         console.log(url);
         $.ajax({
             url: url,
@@ -914,8 +914,9 @@ class Tools {
         return Math.atan(Math.sinh(Math.PI - (z + Main.medZ) / Math.pow(2, zoom) * 2 * Math.PI)) * 180 / Math.PI;
     }
     static RotateToRef(v, alpha, ref) {
-        ref.x = Math.cos(alpha) * v.x - Math.sin(alpha) * v.y;
-        ref.y = Math.sin(alpha) * v.x + Math.cos(alpha) * v.y;
+        Tools.tmp.x = Math.cos(alpha) * v.x - Math.sin(alpha) * v.y;
+        Tools.tmp.y = Math.sin(alpha) * v.x + Math.cos(alpha) * v.y;
+        ref.copyFrom(Tools.tmp);
     }
     static AngleFromTo(a, b) {
         let angle = Math.acos(BABYLON.Vector2.Dot(a, b));
@@ -926,6 +927,7 @@ class Tools {
         return angle;
     }
 }
+Tools.tmp = BABYLON.Vector2.Zero();
 /*
 class Tools {
     public static LonToX(lon: number): number {
