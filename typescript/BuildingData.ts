@@ -120,27 +120,31 @@ class BuildingData {
             }
             let l: number = BABYLON.Vector2.Distance(a, b);
             for (let d: number = 1; d < l - 2; d += 2) {
-                for (let h: number = 0; h < level; h++) {
+                for (let y: number = 0; y < level; y++) {
+                    let offset: number = 0.8;
+                    let h: number = 1;
+                    if (y === 0) {
+                        if (i === this.doorIndex) {
+                            if (d === 1) {
+                                h = 2;
+                                offset = 0;
+                            }
+                        }
+                    }
                     BuildingData.pushWindow(
                         points[i].x - position.x,
                         points[i].y - position.y,
                         points[iP].x - position.x,
                         points[iP].y - position.y,
                         d, 
-                        0.8 + h * 2.5,
+                        offset + y * 2.5,
+                        h,
                         positions,
                         indices,
                         colors
                     );
                 }
             }
-        }
-
-        if (this.doorIndex >= 0) {
-            let doorIndexP = (this.doorIndex + 1) % points.length;
-            let sphere: BABYLON.Mesh = BABYLON.MeshBuilder.CreateSphere("Door", {diameter: 1}, Main.instance.scene);
-            sphere.position.x = (points[doorIndexP].x + points[this.doorIndex].x) / 2
-            sphere.position.z = (points[doorIndexP].y + points[this.doorIndex].y) / 2
         }
 
         return {
@@ -160,6 +164,7 @@ class BuildingData {
         x2: number,
         y2: number,
         x: number,
+        y: number,
         h: number,
         positions: number[],
         indices: number[],
@@ -181,13 +186,13 @@ class BuildingData {
 
         let i: number = positions.length / 3;
 
-        positions.push(p0.x, h, p0.y);
+        positions.push(p0.x, y, p0.y);
         colors.push(color.r, color.g, color.b, 1);
-        positions.push(p1.x, h, p1.y);
+        positions.push(p1.x, y, p1.y);
         colors.push(color.r, color.g, color.b, 1);
-        positions.push(p1.x, h + 1, p1.y);
+        positions.push(p1.x, y + h, p1.y);
         colors.push(color.r, color.g, color.b, 1);
-        positions.push(p0.x, h + 1, p0.y);
+        positions.push(p0.x, y + h, p0.y);
         colors.push(color.r, color.g, color.b, 1);
 
         indices.push(i, i + 1, i + 2);

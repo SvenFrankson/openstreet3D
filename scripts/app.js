@@ -135,16 +135,20 @@ class BuildingData {
             }
             let l = BABYLON.Vector2.Distance(a, b);
             for (let d = 1; d < l - 2; d += 2) {
-                for (let h = 0; h < level; h++) {
-                    BuildingData.pushWindow(points[i].x - position.x, points[i].y - position.y, points[iP].x - position.x, points[iP].y - position.y, d, 0.8 + h * 2.5, positions, indices, colors);
+                for (let y = 0; y < level; y++) {
+                    let offset = 0.8;
+                    let h = 1;
+                    if (y === 0) {
+                        if (i === this.doorIndex) {
+                            if (d === 1) {
+                                h = 2;
+                                offset = 0;
+                            }
+                        }
+                    }
+                    BuildingData.pushWindow(points[i].x - position.x, points[i].y - position.y, points[iP].x - position.x, points[iP].y - position.y, d, offset + y * 2.5, h, positions, indices, colors);
                 }
             }
-        }
-        if (this.doorIndex >= 0) {
-            let doorIndexP = (this.doorIndex + 1) % points.length;
-            let sphere = BABYLON.MeshBuilder.CreateSphere("Door", { diameter: 1 }, Main.instance.scene);
-            sphere.position.x = (points[doorIndexP].x + points[this.doorIndex].x) / 2;
-            sphere.position.z = (points[doorIndexP].y + points[this.doorIndex].y) / 2;
         }
         return {
             positions: positions,
@@ -154,7 +158,7 @@ class BuildingData {
             radius: 1
         };
     }
-    static pushWindow(x1, y1, x2, y2, x, h, positions, indices, colors) {
+    static pushWindow(x1, y1, x2, y2, x, y, h, positions, indices, colors) {
         let color = BABYLON.Color3.FromHexString(Config.color2);
         BuildingData._dir.copyFromFloats(x2 - x1, y2 - y1);
         BuildingData._dir.normalize();
@@ -165,13 +169,13 @@ class BuildingData {
         let p1 = p0.clone();
         p1.addInPlace(BuildingData._dir);
         let i = positions.length / 3;
-        positions.push(p0.x, h, p0.y);
+        positions.push(p0.x, y, p0.y);
         colors.push(color.r, color.g, color.b, 1);
-        positions.push(p1.x, h, p1.y);
+        positions.push(p1.x, y, p1.y);
         colors.push(color.r, color.g, color.b, 1);
-        positions.push(p1.x, h + 1, p1.y);
+        positions.push(p1.x, y + h, p1.y);
         colors.push(color.r, color.g, color.b, 1);
-        positions.push(p0.x, h + 1, p0.y);
+        positions.push(p0.x, y + h, p0.y);
         colors.push(color.r, color.g, color.b, 1);
         indices.push(i, i + 1, i + 2);
         indices.push(i, i + 2, i + 3);
@@ -289,8 +293,8 @@ class CameraManager {
 class Config {
 }
 Config.backgroundColor = "#2d1f00";
-Config.color1 = "#b300ba";
-Config.color2 = "#00bab3";
+Config.color1 = "#e0e0e0";
+Config.color2 = "#c0c0c0";
 class Failure {
     constructor(origin, range) {
         Failure.instances.push(this);
@@ -592,6 +596,7 @@ class Poc {
                     if (nodes[i].tagName === "way") {
                         let itsBuilding = false;
                         let itsRoad = false;
+                        let itsWater = false;
                         let level = Math.floor(Math.random() * 3 + 1);
                         let nodeIChildren = nodes[i].children;
                         for (let j = 0; j < nodeIChildren.length; j++) {
@@ -605,6 +610,11 @@ class Poc {
                                     }
                                     if (nodeIChildren[j].getAttribute("k") === "highway") {
                                         itsRoad = true;
+                                        break;
+                                    }
+                                    if (nodeIChildren[j].getAttribute("k") === "waterway") {
+                                        itsWater = true;
+                                        break;
                                     }
                                 }
                             }
@@ -635,6 +645,21 @@ class Poc {
                                 }
                             }
                             Main.instance.roadMaker.toDoList.push(newRoad);
+                        }
+                        else if (itsWater) {
+                            console.log("Water Way");
+                            let waterMaterial = new BABYLON.StandardMaterial("Test", Main.instance.scene);
+                            waterMaterial.diffuseColor.copyFromFloats(Math.random(), Math.random(), Math.random());
+                            for (let j = 0; j < nodeIChildren.length; j++) {
+                                if (nodeIChildren[j].tagName === "nd") {
+                                    let nodeRef = parseInt(nodeIChildren[j].getAttribute("ref"));
+                                    let node = mapNodes.get(nodeRef);
+                                    let cube = BABYLON.MeshBuilder.CreateBox("River", { size: 2 }, Main.instance.scene);
+                                    cube.material = waterMaterial;
+                                    cube.position.x = node.x;
+                                    cube.position.z = node.y;
+                                }
+                            }
                         }
                     }
                 }

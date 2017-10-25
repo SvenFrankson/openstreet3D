@@ -26,6 +26,7 @@ class Poc {
                         if (nodes[i].tagName === "way") {
                             let itsBuilding: boolean = false;
                             let itsRoad: boolean = false;
+                            let itsWater: boolean = false;
                             let level: number = Math.floor(Math.random() * 3 + 1);
                             let nodeIChildren = nodes[i].children;
                             for (let j: number = 0; j < nodeIChildren.length; j++) {
@@ -39,6 +40,11 @@ class Poc {
                                         }
                                         if (nodeIChildren[j].getAttribute("k") === "highway") {
                                             itsRoad = true;
+                                            break;
+                                        }
+                                        if (nodeIChildren[j].getAttribute("k") === "waterway") {
+                                            itsWater = true;
+                                            break;
                                         }
                                     }
                                 }
@@ -68,6 +74,24 @@ class Poc {
                                     }
                                 }
                                 Main.instance.roadMaker.toDoList.push(newRoad);
+                            } else if (itsWater) {
+                                console.log("Water Way");
+                                let waterMaterial = new BABYLON.StandardMaterial("Test", Main.instance.scene);
+                                waterMaterial.diffuseColor.copyFromFloats(
+                                    Math.random(),
+                                    Math.random(),
+                                    Math.random()
+                                );
+                                for (let j: number = 0; j < nodeIChildren.length; j++) {
+                                    if (nodeIChildren[j].tagName === "nd") {
+                                        let nodeRef: number = parseInt(nodeIChildren[j].getAttribute("ref"));
+                                        let node: BABYLON.Vector2 = mapNodes.get(nodeRef);
+                                        let cube = BABYLON.MeshBuilder.CreateBox("River", {size: 2}, Main.instance.scene);
+                                        cube.material = waterMaterial;
+                                        cube.position.x = node.x;
+                                        cube.position.z = node.y;
+                                    }
+                                }
                             }
                         }
                     }
